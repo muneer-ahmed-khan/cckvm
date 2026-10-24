@@ -1,0 +1,8 @@
+{
+  "primary": "office-mac",
+  "screens": {
+    "office-mac": {"right": "office-pc"},
+    "office-pc": {"left": "office-mac", "bottom": "laptop"},
+    "laptop": {"top": "office-pc"}
+  }
+}

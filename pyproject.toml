@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cckvm"
+version = "0.1.0"
+description = "Barrier wire protocol software KVM experiment"
+requires-python = ">=3.10"
+dependencies = ["pynput>=1.7.7", "pyperclip>=1.9.0"]
+
+[project.scripts]
+cckvm = "cckvm.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
