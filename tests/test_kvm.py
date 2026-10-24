@@ -162,6 +162,15 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         await first_writer.wait_closed()
         await second_writer.wait_closed()
 
+    async def test_unresponsive_client_is_disconnected(self):
+        reader, writer = await self.connect()
+        self.assertEqual(await read_packet(reader), b"QINF")
+        self.assertEqual(await read_packet(reader), b"CROP")
+        self.server.peers["side"].last_reply -= 10
+        self.assertEqual(await asyncio.wait_for(reader.read(), 4), b"")
+        writer.close()
+        await writer.wait_closed()
+
 
 if __name__ == "__main__":
     unittest.main()

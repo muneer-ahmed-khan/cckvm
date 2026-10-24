@@ -27,6 +27,20 @@ class Desktop:
     def position(self) -> tuple[int, int]:
         return tuple(map(int, self.pointer.position))
 
+    def check_permissions(self, capture: bool) -> None:
+        import ApplicationServices
+        import Quartz
+        missing = []
+        if not ApplicationServices.AXIsProcessTrusted():
+            missing.append("Accessibility")
+        if capture and not Quartz.CGPreflightListenEventAccess():
+            missing.append("Input Monitoring")
+        if missing:
+            raise RuntimeError(
+                "macOS permission required: " + ", ".join(missing)
+                + ". Grant the terminal app access in System Settings → Privacy & Security, then restart it."
+            )
+
     def move(self, x: int, y: int) -> None:
         self.pointer.position = (x, y)
 

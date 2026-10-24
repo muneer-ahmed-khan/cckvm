@@ -21,7 +21,11 @@ def main() -> None:
     client.add_argument("--port", type=int, default=24800)
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(message)s")
-    desktop = Desktop()
+    try:
+        desktop = Desktop()
+        desktop.check_permissions(capture=args.role == "server")
+    except RuntimeError as exc:
+        parser.exit(2, f"cckvm: {exc}\n")
     if args.role == "server":
         layout = Layout.load(args.config)
 

@@ -2,7 +2,7 @@
 
 `cckvm` is a Python implementation of the Barrier 1.6 wire protocol. It includes a TCP server and a client, directional screen layouts, cursor handoff, keyboard and mouse commands, keepalives, and text clipboard transfer. The code targets a single primary macOS display and uses `pynput` for desktop input plus `pyperclip` for clipboard access.
 
-**Status:** automated protocol and loopback tests pass. A live two-machine session with unmodified Barrier has **not** been run. Treat this as an experimental build until the [manual checklist](#manual-verification) is complete. In particular, macOS Accessibility and Input Monitoring permissions, real input suppression, genuine Barrier interoperability, screensaver notifications, and multi-display coordinate behavior remain unverified. The client currently logs `CSEC` but does not activate its local screensaver; the server does not detect screensaver changes. TLS and file transfer are not implemented.
+**Status:** automated protocol and loopback tests pass. An unmodified Barrier client completed the initial hello, screen-info and keepalive exchange on localhost, but a live two-machine session has **not** been run. Treat this as an experimental build until the [manual checklist](#manual-verification) is complete. In particular, real input suppression/injection, full genuine Barrier interoperability, screensaver notifications, and multi-display coordinate behavior remain unverified. The client currently logs `CSEC` but does not activate its local screensaver; the server does not detect screensaver changes. TLS and file transfer are not implemented. See [the testing record](TESTING.md).
 
 ## Install
 
@@ -16,6 +16,8 @@ cckvm --help
 ```
 
 Grant the terminal app running `cckvm` macOS **Accessibility** and **Input Monitoring** access in System Settings → Privacy & Security. Restart the terminal after granting access. Barrier must be configured for a plain TCP connection because this build does not implement TLS. Use it only on a trusted network; the connection has no authentication or encryption.
+
+The CLI checks these permissions at startup and exits with a specific message when they are missing. The server needs both; the client needs Accessibility for input injection.
 
 ## Configure and run
 
@@ -41,7 +43,7 @@ Run another client with `--name laptop` for the third screen. Press Ctrl+C to cl
 python -m unittest discover -s tests -v
 ```
 
-The tests use loopback TCP sockets and fake desktop adapters. They exercise the handshake, incompatible-version rejection, screen information, a handoff, mouse, keyboard and clipboard commands, a three-screen layout, and two instances of this implementation. They do not establish real Barrier interoperability or verify OS-level capture/injection.
+The nine tests use loopback TCP sockets and fake desktop adapters. They exercise the handshake, incompatible-version rejection, screen information, a handoff, mouse, keyboard and clipboard commands, a three-screen layout, timeout enforcement, and two instances of this implementation. They do not establish full Barrier interoperability or verify OS-level capture/injection.
 
 ## Manual verification
 
