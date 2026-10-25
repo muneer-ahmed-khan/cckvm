@@ -2,7 +2,7 @@
 
 `cckvm` is a Python implementation of the Barrier 1.6 wire protocol. It includes a TCP server and a client, directional screen layouts, cursor handoff, keyboard and mouse commands, keepalives, and text clipboard transfer. The code targets a single primary macOS display and uses `pynput` for desktop input plus `pyperclip` for clipboard access.
 
-**Status:** automated protocol and loopback tests pass. An unmodified Barrier client completed the initial hello, screen-info and keepalive exchange on localhost, but a live two-machine session has **not** been run. Treat this as an experimental build until the [manual checklist](#manual-verification) is complete. In particular, real input suppression/injection, full genuine Barrier interoperability, screensaver notifications, and multi-display coordinate behavior remain unverified. The client currently logs `CSEC` but does not activate its local screensaver; the server does not detect screensaver changes. TLS and file transfer are not implemented. See [the testing record](TESTING.md).
+**Status:** automated protocol and loopback tests pass. An unmodified Barrier client completed the initial hello, screen-info and keepalive exchange on localhost. A first two-Mac cursor test reached the client but exposed rapid back-and-forth handoffs; an entry margin, queued-motion cleanup and brief return guard were added afterward and await a physical retest. Treat this as an experimental build until the [manual checklist](#manual-verification) is complete. In particular, real keyboard/click/scroll/clipboard behavior, full genuine Barrier interoperability, screensaver notifications, and multi-display coordinate behavior remain unverified. The client currently logs `CSEC` but does not activate its local screensaver; the server does not detect screensaver changes. TLS and file transfer are not implemented. See [the testing record](TESTING.md).
 
 ## Install
 
@@ -45,7 +45,7 @@ While controlling a client, press **Control + Option + Escape** to return contro
 python -m unittest discover -s tests -v
 ```
 
-The nine tests use loopback TCP sockets and fake desktop adapters. They exercise the handshake, incompatible-version rejection, screen information, a handoff, mouse, keyboard and clipboard commands, a three-screen layout, timeout enforcement, and two instances of this implementation. They do not establish full Barrier interoperability or verify OS-level capture/injection.
+The ten tests use loopback TCP sockets and fake desktop adapters. They exercise the handshake, incompatible-version rejection, screen information, a handoff and return guard, mouse, keyboard and clipboard commands, a three-screen layout, timeout enforcement, and two instances of this implementation. They do not establish full Barrier interoperability or verify OS-level capture/injection.
 
 ## Manual verification
 

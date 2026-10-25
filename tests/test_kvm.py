@@ -57,7 +57,7 @@ class ProtocolTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unknown"):
                 Layout.load(path)
         self.assertEqual(layout().neighbor("side", "bottom"), "third")
-        self.assertEqual(entry_point("right", 99, 49, (100, 100), (200, 80)), (1, 39))
+        self.assertEqual(entry_point("right", 99, 49, (100, 100), (200, 80)), (32, 39))
 
     def test_special_key_uses_barrier_key_id(self):
         self.assertEqual(key_id(SimpleNamespace(name="shift", char=None)), 0xEFE1)
@@ -91,7 +91,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         await self.server.mouse_move(99, 40)
         enter = await read_packet(reader)
         self.assertEqual(enter[:4], b"CINN")
-        self.assertEqual(struct.unpack(">hhIH", enter[4:])[:2], (1, 32))
+        self.assertEqual(struct.unpack(">hhIH", enter[4:])[:2], (32, 32))
         self.assertEqual(self.server.active, "side")
         await self.server.mouse_move(51, 50)
         self.assertEqual((await read_packet(reader))[:4], b"DMRM")
@@ -125,6 +125,29 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await read_packet(reader), b"EUNK")
         writer.close()
 
+    async def test_handoff_discards_stale_motion_and_has_return_guard(self):
+        reader, writer = await self.connect()
+        self.assertEqual(await read_packet(reader), b"QINF")
+        self.assertEqual(await read_packet(reader), b"CROP")
+        writer.write(packet(b"DINF" + struct.pack(">hhhhhhh", 0, 0, 100, 100, 0, 50, 50)))
+        await writer.drain()
+        self.assertEqual(await read_packet(reader), b"CIAK")
+        self.server.events.put_nowait(("move", 0, 50))
+        self.server.events.put_nowait(("button", "left", True))
+        await self.server.mouse_move(99, 50)
+        self.assertEqual((await read_packet(reader))[:4], b"CINN")
+        self.assertEqual(self.server.events.get_nowait(), ("button", "left", True))
+        await self.server.mouse_move(0, 50)
+        self.assertEqual((await read_packet(reader))[:4], b"DMRM")
+        self.assertEqual(self.server.active, "side")
+        self.server._handoff_guard_until = 0
+        await self.server.mouse_move(0, 50)
+        self.assertEqual((await read_packet(reader))[:4], b"DMRM")
+        self.assertEqual(await read_packet(reader), b"COUT")
+        self.assertEqual(self.server.active, "main")
+        writer.close()
+        await writer.wait_closed()
+
     async def test_own_client(self):
         client_desktop = FakeDesktop()
         task = asyncio.create_task(KVMClient("side", client_desktop, "127.0.0.1", self.port).run())
@@ -135,7 +158,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.server.peers["side"].size, (100, 100))
         await self.server.mouse_move(99, 50)
         await asyncio.sleep(0.05)
-        self.assertEqual(client_desktop.position(), (1, 50))
+        self.assertEqual(client_desktop.position(), (24, 50))
         await self.server.peers["side"].send(b"DMDN\x01")
         await self.server.peers["side"].send(b"DKDN" + struct.pack(">HHH", ord("a"), 0, 1))
         await self.server.peers["side"].send(b"DKUP" + struct.pack(">HHH", ord("a"), 0, 1))

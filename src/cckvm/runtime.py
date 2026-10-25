@@ -47,6 +47,7 @@ class KVMServer:
         self._clipboard = desktop.clipboard()
         self._last_local = self.position
         self._ignore_motion = False
+        self._handoff_guard_until = 0.0
         self._keys_down: set[int] = set()
         self._modifiers = 0
 
@@ -208,6 +209,18 @@ class KVMServer:
     def _size(self, name: str) -> tuple[int, int]:
         return self.primary_size if name == self.layout.primary else self.peers[name].size
 
+    def _discard_pending_motion(self) -> None:
+        retained = []
+        while True:
+            try:
+                event = self.events.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            if event[0] != "move":
+                retained.append(event)
+        for event in retained:
+            self.events.put_nowait(event)
+
     async def _return_to_primary(self) -> None:
         peer = self.peers.get(self.active)
         if peer:
@@ -217,6 +230,8 @@ class KVMServer:
         self._keys_down.clear()
         self._modifiers = 0
         self._ignore_motion = True
+        self._handoff_guard_until = time.monotonic() + 0.25
+        self._discard_pending_motion()
         self.desktop.move(*self.position)
         if self.desktop._emit:
             self.desktop.capture(self.desktop._emit, remote=False)
@@ -245,7 +260,7 @@ class KVMServer:
                          "top" if py + dy <= 0 else "bottom" if py + dy >= size[1] - 1 else None)
             self._ignore_motion = True
             self.desktop.move(cx, cy)
-        if direction:
+        if direction and time.monotonic() >= self._handoff_guard_until:
             await self._handoff(direction)
 
     async def _handoff(self, direction: str) -> None:
@@ -257,6 +272,8 @@ class KVMServer:
         if old in self.peers:
             await self.peers[old].send(b"COUT")
         self.active, self.position = target, position
+        self._handoff_guard_until = time.monotonic() + 0.25
+        self._discard_pending_motion()
         LOG.info("handoff %s -> %s at %s", old, target, position)
         if target in self.peers:
             peer = self.peers[target]

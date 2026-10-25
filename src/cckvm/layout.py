@@ -37,8 +37,10 @@ class Layout:
 
 def entry_point(direction: str, x: int, y: int, old: tuple[int, int], new: tuple[int, int]) -> tuple[int, int]:
     width, height = new
+    horizontal_margin = min(32, max(1, (width - 1) // 4))
+    vertical_margin = min(32, max(1, (height - 1) // 4))
     if direction in ("left", "right"):
         mapped = min(height - 1, max(0, round(y * (height - 1) / max(1, old[1] - 1))))
-        return (width - 2 if direction == "left" else 1, mapped)
+        return (width - 1 - horizontal_margin if direction == "left" else horizontal_margin, mapped)
     mapped = min(width - 1, max(0, round(x * (width - 1) / max(1, old[0] - 1))))
-    return (mapped, height - 2 if direction == "top" else 1)
+    return (mapped, height - 1 - vertical_margin if direction == "top" else vertical_margin)
