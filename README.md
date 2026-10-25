@@ -37,6 +37,8 @@ cckvm client --name office-pc --host PRIMARY_MAC_IP --port 24800
 
 Run another client with `--name laptop` for the third screen. Press Ctrl+C to close cleanly. To test against an unmodified Barrier client, configure it with the exact screen name and point it to the primary Mac on port 24800 with SSL disabled. To test this client against Barrier, give the Barrier server a matching screen entry and point `cckvm client` to it.
 
+While controlling a client, press **Control + Option + Escape** to return control to the primary Mac immediately. This shortcut is handled locally by the server and is useful if an edge handoff does not return as expected.
+
 ## Automated checks
 
 ```sh

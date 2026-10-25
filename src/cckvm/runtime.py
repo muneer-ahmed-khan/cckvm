@@ -183,6 +183,9 @@ class KVMServer:
                 bit = MODIFIER_KEYS.get(code, 0)
                 if bit:
                     self._modifiers = (self._modifiers | bit) if pressed else (self._modifiers & ~bit)
+                if pressed and code == 0xEF1B and self._modifiers & 0x6 == 0x6 and self.active != self.layout.primary:
+                    await self._return_to_primary()
+                    continue
                 if self.active in self.peers:
                     peer = self.peers[self.active]
                     button = getattr(key, "vk", None) or code
@@ -204,6 +207,20 @@ class KVMServer:
 
     def _size(self, name: str) -> tuple[int, int]:
         return self.primary_size if name == self.layout.primary else self.peers[name].size
+
+    async def _return_to_primary(self) -> None:
+        peer = self.peers.get(self.active)
+        if peer:
+            await peer.send(b"COUT")
+        self.active = self.layout.primary
+        self.position = (self.primary_size[0] // 2, self.primary_size[1] // 2)
+        self._keys_down.clear()
+        self._modifiers = 0
+        self._ignore_motion = True
+        self.desktop.move(*self.position)
+        if self.desktop._emit:
+            self.desktop.capture(self.desktop._emit, remote=False)
+        LOG.info("returned control to primary via emergency shortcut")
 
     async def mouse_move(self, x: int, y: int) -> None:
         if self._ignore_motion:
