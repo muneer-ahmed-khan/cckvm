@@ -42,7 +42,7 @@ def layout():
 
 
 class ProtocolTests(unittest.TestCase):
-    def test_mac_mouse_capture_ignores_warps_and_suppresses_physical_remote_motion(self):
+    def test_mac_mouse_capture_uses_physical_deltas_and_ignores_warps(self):
         import Quartz
 
         listeners = []
@@ -65,14 +65,18 @@ class ProtocolTests(unittest.TestCase):
         mouse = listeners[0].options
         mouse["on_move"](11, 12, True)
         mouse["on_move"](13, 14, False)
-        self.assertEqual(emitted, [("move", 13, 14)])
+        self.assertEqual(emitted, [])
 
-        event = Quartz.CGEventCreate(None)
+        event = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, (13, 14), Quartz.kCGMouseButtonLeft)
         intercept = mouse["darwin_intercept"]
         Quartz.CGEventSetIntegerValueField(event, Quartz.kCGEventSourceUnixProcessID, 0)
-        self.assertIsNone(intercept(None, event))
+        Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaX, 3)
+        Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaY, -2)
+        self.assertIsNone(intercept(Quartz.kCGEventMouseMoved, event))
+        self.assertEqual(emitted, [("move_relative", 3, -2)])
         Quartz.CGEventSetIntegerValueField(event, Quartz.kCGEventSourceUnixProcessID, os.getpid())
-        self.assertIs(intercept(None, event), event)
+        self.assertIs(intercept(Quartz.kCGEventMouseMoved, event), event)
+        self.assertEqual(emitted, [("move_relative", 3, -2)])
 
     def test_hello_and_clipboard(self):
         self.assertEqual(parse_hello(hello("screen"), True), (1, 6, "screen"))
@@ -127,7 +131,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(enter[:4], b"CINN")
         self.assertEqual(struct.unpack(">hhIH", enter[4:])[:2], (32, 32))
         self.assertEqual(self.server.active, "side")
-        await self.server.mouse_move(51, 50)
+        await self.server.mouse_delta(1, 0)
         self.assertEqual((await read_packet(reader))[:4], b"DMRM")
         event_task = asyncio.create_task(self.server._events())
         self.server.tasks.append(event_task)
@@ -167,6 +171,7 @@ class NetworkTests(unittest.IsolatedAsyncioTestCase):
         await writer.drain()
         self.assertEqual(await read_packet(reader), b"CIAK")
         self.server.events.put_nowait(("move", 0, 50))
+        self.server.events.put_nowait(("move_relative", -20, 0))
         self.server.events.put_nowait(("button", "left", True))
         await self.server.mouse_move(99, 50)
         self.assertEqual((await read_packet(reader))[:4], b"CINN")

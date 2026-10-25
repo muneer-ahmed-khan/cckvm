@@ -175,6 +175,8 @@ class KVMServer:
             kind, *args = await self.events.get()
             if kind == "move":
                 await self.mouse_move(*args)
+            elif kind == "move_relative":
+                await self.mouse_delta(*args)
             elif kind == "key":
                 key, pressed = args
                 code = key_id(key)
@@ -215,7 +217,7 @@ class KVMServer:
                 event = self.events.get_nowait()
             except asyncio.QueueEmpty:
                 break
-            if event[0] != "move":
+            if event[0] not in ("move", "move_relative"):
                 retained.append(event)
         for event in retained:
             self.events.put_nowait(event)
@@ -242,16 +244,20 @@ class KVMServer:
                          "top" if y <= 0 else "bottom" if y >= self.primary_size[1] - 1 else None)
         else:
             cx, cy = self.primary_size[0] // 2, self.primary_size[1] // 2
-            dx, dy = x - cx, y - cy
-            if dx == 0 and dy == 0:
-                return
-            px, py = self.position
-            size = self._size(self.active)
-            self.position = (max(0, min(size[0] - 1, px + dx)), max(0, min(size[1] - 1, py + dy)))
-            await self.peers[self.active].send(command("DMRM", "hh", max(-32768, min(32767, dx)), max(-32768, min(32767, dy))))
-            direction = ("left" if px + dx <= 0 else "right" if px + dx >= size[0] - 1 else
-                         "top" if py + dy <= 0 else "bottom" if py + dy >= size[1] - 1 else None)
-            self.desktop.move(cx, cy)
+            await self.mouse_delta(x - cx, y - cy)
+            return
+        if direction and time.monotonic() >= self._handoff_guard_until:
+            await self._handoff(direction)
+
+    async def mouse_delta(self, dx: int, dy: int) -> None:
+        if self.active == self.layout.primary or (dx == 0 and dy == 0):
+            return
+        px, py = self.position
+        size = self._size(self.active)
+        self.position = (max(0, min(size[0] - 1, px + dx)), max(0, min(size[1] - 1, py + dy)))
+        await self.peers[self.active].send(command("DMRM", "hh", max(-32768, min(32767, dx)), max(-32768, min(32767, dy))))
+        direction = ("left" if px + dx <= 0 else "right" if px + dx >= size[0] - 1 else
+                     "top" if py + dy <= 0 else "bottom" if py + dy >= size[1] - 1 else None)
         if direction and time.monotonic() >= self._handoff_guard_until:
             await self._handoff(direction)
 

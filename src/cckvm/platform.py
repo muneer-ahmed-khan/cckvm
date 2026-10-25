@@ -61,14 +61,26 @@ class Desktop:
 
         def intercept(_event_type, event):
             source_pid = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGEventSourceUnixProcessID)
-            return event if source_pid == os.getpid() else None
+            if source_pid == os.getpid():
+                return event
+            if source_pid == 0 and _event_type in (
+                Quartz.kCGEventMouseMoved,
+                Quartz.kCGEventLeftMouseDragged,
+                Quartz.kCGEventRightMouseDragged,
+                Quartz.kCGEventOtherMouseDragged,
+            ):
+                dx = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGMouseEventDeltaX)
+                dy = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGMouseEventDeltaY)
+                if dx or dy:
+                    emit("move_relative", int(dx), int(dy))
+            return None
 
         with self._lock:
             self._stop()
             self._emit = emit
             self._remote = remote
             mouse = self.mouse.Listener(
-                on_move=lambda x, y, injected: None if injected else emit("move", int(x), int(y)),
+                on_move=lambda x, y, injected: None if remote or injected else emit("move", int(x), int(y)),
                 on_click=lambda x, y, button, pressed, injected: None if injected else emit("button", button.name, pressed),
                 on_scroll=lambda x, y, dx, dy, injected: None if injected else emit("wheel", int(dx), int(dy)),
                 suppress=False,
