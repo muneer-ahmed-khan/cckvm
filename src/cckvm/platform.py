@@ -1,4 +1,5 @@
 """Desktop adapter. Import only when running on a graphical desktop."""
+import os
 import threading
 
 
@@ -56,15 +57,22 @@ class Desktop:
         self._listeners = []
 
     def capture(self, emit, remote: bool = False) -> None:
+        import Quartz
+
+        def intercept(_event_type, event):
+            source_pid = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGEventSourceUnixProcessID)
+            return event if source_pid == os.getpid() else None
+
         with self._lock:
             self._stop()
             self._emit = emit
             self._remote = remote
             mouse = self.mouse.Listener(
-                on_move=lambda x, y: emit("move", int(x), int(y)),
-                on_click=lambda x, y, button, pressed: emit("button", button.name, pressed),
-                on_scroll=lambda x, y, dx, dy: emit("wheel", int(dx), int(dy)),
-                suppress=remote,
+                on_move=lambda x, y, injected: None if injected else emit("move", int(x), int(y)),
+                on_click=lambda x, y, button, pressed, injected: None if injected else emit("button", button.name, pressed),
+                on_scroll=lambda x, y, dx, dy, injected: None if injected else emit("wheel", int(dx), int(dy)),
+                suppress=False,
+                **({"darwin_intercept": intercept} if remote else {}),
             )
             keyboard = self.keyboard.Listener(
                 on_press=lambda key: emit("key", key, True),

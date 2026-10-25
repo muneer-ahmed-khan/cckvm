@@ -46,7 +46,6 @@ class KVMServer:
         self.events: asyncio.Queue = asyncio.Queue()
         self._clipboard = desktop.clipboard()
         self._last_local = self.position
-        self._ignore_motion = False
         self._handoff_guard_until = 0.0
         self._keys_down: set[int] = set()
         self._modifiers = 0
@@ -229,7 +228,6 @@ class KVMServer:
         self.position = (self.primary_size[0] // 2, self.primary_size[1] // 2)
         self._keys_down.clear()
         self._modifiers = 0
-        self._ignore_motion = True
         self._handoff_guard_until = time.monotonic() + 0.25
         self._discard_pending_motion()
         self.desktop.move(*self.position)
@@ -238,11 +236,6 @@ class KVMServer:
         LOG.info("returned control to primary via emergency shortcut")
 
     async def mouse_move(self, x: int, y: int) -> None:
-        if self._ignore_motion:
-            self._ignore_motion = False
-            expected = (self.primary_size[0] // 2, self.primary_size[1] // 2) if self.active != self.layout.primary else self.position
-            if (x, y) == expected:
-                return
         if self.active == self.layout.primary:
             self.position = (max(0, min(self.primary_size[0] - 1, x)), max(0, min(self.primary_size[1] - 1, y)))
             direction = ("left" if x <= 0 else "right" if x >= self.primary_size[0] - 1 else
@@ -258,7 +251,6 @@ class KVMServer:
             await self.peers[self.active].send(command("DMRM", "hh", max(-32768, min(32767, dx)), max(-32768, min(32767, dy))))
             direction = ("left" if px + dx <= 0 else "right" if px + dx >= size[0] - 1 else
                          "top" if py + dy <= 0 else "bottom" if py + dy >= size[1] - 1 else None)
-            self._ignore_motion = True
             self.desktop.move(cx, cy)
         if direction and time.monotonic() >= self._handoff_guard_until:
             await self._handoff(direction)
@@ -281,10 +273,8 @@ class KVMServer:
             peer.sequence = self.sequence
             await peer.send(command("CINN", "hhIH", position[0] + peer.origin[0], position[1] + peer.origin[1], self.sequence, self._modifiers))
             center = (self.primary_size[0] // 2, self.primary_size[1] // 2)
-            self._ignore_motion = True
             self.desktop.move(*center)
         else:
-            self._ignore_motion = True
             self.desktop.move(*position)
         if self.desktop._emit:
             self.desktop.capture(self.desktop._emit, remote=target != self.layout.primary)

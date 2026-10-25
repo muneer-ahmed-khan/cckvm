@@ -1,13 +1,15 @@
 import asyncio
 import json
+import os
 import struct
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
 from cckvm.layout import Layout, entry_point
-from cckvm.platform import key_id
+from cckvm.platform import Desktop, key_id
 from cckvm.protocol import ClipboardReceiver, ProtocolError, clipboard_frames, hello, packet, parse_hello, read_packet
 from cckvm.runtime import KVMClient, KVMServer
 
@@ -40,6 +42,38 @@ def layout():
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_mac_mouse_capture_ignores_warps_and_suppresses_physical_remote_motion(self):
+        import Quartz
+
+        listeners = []
+
+        class Listener:
+            def __init__(self, **kwargs):
+                self.options = kwargs
+                listeners.append(self)
+
+            def start(self): pass
+            def stop(self): pass
+
+        desktop = Desktop.__new__(Desktop)
+        desktop.mouse = SimpleNamespace(Listener=Listener)
+        desktop.keyboard = SimpleNamespace(Listener=Listener)
+        desktop._listeners = []
+        desktop._lock = threading.Lock()
+        emitted = []
+        desktop.capture(lambda *event: emitted.append(event), remote=True)
+        mouse = listeners[0].options
+        mouse["on_move"](11, 12, True)
+        mouse["on_move"](13, 14, False)
+        self.assertEqual(emitted, [("move", 13, 14)])
+
+        event = Quartz.CGEventCreate(None)
+        intercept = mouse["darwin_intercept"]
+        Quartz.CGEventSetIntegerValueField(event, Quartz.kCGEventSourceUnixProcessID, 0)
+        self.assertIsNone(intercept(None, event))
+        Quartz.CGEventSetIntegerValueField(event, Quartz.kCGEventSourceUnixProcessID, os.getpid())
+        self.assertIs(intercept(None, event), event)
+
     def test_hello_and_clipboard(self):
         self.assertEqual(parse_hello(hello("screen"), True), (1, 6, "screen"))
         receiver = ClipboardReceiver()
